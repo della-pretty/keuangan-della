@@ -1,26 +1,22 @@
 name: Build APK
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout kode
         uses: actions/checkout@v4
 
-      - name: Build APK dengan Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: stable
+      - name: Build APK dengan Buildozer (docker resmi)
+        run: |
+          docker run --rm -v "${{ github.workspace }}":/home/user/hostcwd \
+            kivy/buildozer android debug
 
       - name: Upload hasil APK
         uses: actions/upload-artifact@v4
         with:
-          name: apk-keuangan-della
-          path: ${{ steps.buildozer.outputs.filename }}
+          name: apk-result
+          path: bin/*.apk
