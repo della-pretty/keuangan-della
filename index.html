@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Catatan Keuangan Mahasiswa</title>
+<meta name="theme-color" content="#e9598c" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<style>
+  :root {
+    --pink-bg: #fff0f5;
+    --pink-primary: #e9598c;
+    --pink-primary-dark: #cf4478;
+    --pink-soft: #fddceb;
+    --text-dark: #3a2c33;
+    --text-muted: #8c7680;
+    --income: #2e9e56;
+    --expense: #d94f4f;
+    --white: #ffffff;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--pink-bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--text-dark);
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+
+  #app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--pink-bg);
+  }
+
+  h1, h2 { margin: 0 0 4px 0; }
+  h1 { font-size: 22px; font-weight: 700; }
+  h2 { font-size: 19px; font-weight: 700; padding: 20px 20px 4px; }
+
+  .subtitle { color: var(--text-muted); font-size: 13px; margin: 0 0 16px; padding: 0 20px; }
+  .subtitle-light { color: rgba(255,255,255,0.85); font-size: 13px; margin: 4px 0 20px; }
+
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 12px 20px 6px;
+  }
+
+  input, select {
+    width: calc(100% - 40px);
+    margin: 0 20px;
+    padding: 12px 14px;
+    border: 1.5px solid var(--pink-soft);
+    border-radius: 12px;
+    font-size: 15px;
+    background: var(--white);
+    color: var(--text-dark);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus { border-color: var(--pink-primary); }
+
+  .onboarding { padding: 24px 0 40px; }
+  .onboarding h1 { padding: 0 20px; }
+
+  .error, .error-light {
+    font-size: 12px;
+    margin: 8px 20px;
+    min-height: 16px;
+  }
+  .error { color: var(--expense); }
+  .error-light { color: #ffe0e0; text-align: center; }
+
+  button {
+    font-family: inherit;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.08s, opacity 0.15s;
+  }
+  button:active { transform: scale(0.98); }
+
+  .btn-primary {
+    background: var(--pink-primary);
+    color: white;
+    padding: 14px;
+    width: calc(100% - 40px);
+    margin: 16px 20px 0;
+  }
+  .btn-primary:hover { background: var(--pink-primary-dark); }
+
+  .btn-secondary {
+    background: #efe3e8;
+    color: var(--text-dark);
+    padding: 14px;
+    width: 100%;
+  }
+
+  .btn-predict {
+    background: #f7c9de;
+    color: var(--pink-primary-dark);
+    padding: 12px;
+    width: calc(100% - 40px);
+    margin: 16px 20px 0;
+  }
+
+  .btn-white {
+    background: white;
+    color: var(--pink-primary-dark);
+    padding: 13px;
+    width: 200px;
+    margin: 0 auto;
+    display: block;
+  }
+
+  .btn-link {
+    background: transparent;
+    color: rgba(255,255,255,0.9);
+    font-size: 12px;
+    font-weight: 400;
+    text-decoration: underline;
+    padding: 8px;
+    margin: 12px auto 24px;
+    display: block;
+  }
+
+  .confidence {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 6px 20px 0;
+    min-height: 16px;
+  }
+
+  /* PIN Lock */
+  .pinlock {
+    background: linear-gradient(160deg, var(--pink-primary), var(--pink-primary-dark));
+    color: white;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 0 24px;
+  }
+  .pinlock-spacer { flex: 1; }
+  .pinlock h1 { color: white; }
+
+  .pin-box {
+    width: 180px;
+    text-align: center;
+    font-size: 24px;
+    letter-spacing: 8px;
+    padding: 12px;
+    border-radius: 14px;
+    border: none;
+    margin: 8px auto;
+  }
+
+  /* Home */
+  .balance-card {
+    background: linear-gradient(135deg, var(--pink-primary), var(--pink-primary-dark));
+    color: white;
+    padding: 24px 20px;
+    border-radius: 0 0 24px 24px;
+  }
+  .balance-label { font-size: 13px; opacity: 0.85; }
+  .balance-value { font-size: 30px; font-weight: 800; margin: 4px 0; }
+  .balance-detail { font-size: 12px; opacity: 0.9; }
+
+  .tx-list {
+    flex: 1;
+    padding: 12px 20px;
+    overflow-y: auto;
+  }
+  .tx-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 4px rgba(233, 89, 140, 0.08);
+  }
+  .tx-desc { font-size: 14px; font-weight: 600; }
+  .tx-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .tx-amount { font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .tx-amount.income { color: var(--income); }
+  .tx-amount.expense { color: var(--expense); }
+
+  .empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-top: 40px;
+  }
+
+  /* Weekly comparison banner (home) */
+  .week-banner {
+    margin: 12px 20px 0;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .week-banner.naik { background: #fdeaea; color: #b23a3a; }
+  .week-banner.turun { background: #e6f6ec; color: #1e7a44; }
+  .week-banner.sama { background: var(--pink-soft); color: var(--pink-primary-dark); }
+
+  /* Weekly trend chart (report) */
+  .trend-summary {
+    margin: 0 20px 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .trend-summary.naik { background: #fdeaea; color: #b23a3a; }
+  .trend-summary.turun { background: #e6f6ec; color: #1e7a44; }
+  .trend-summary.sama { background: var(--pink-soft); color: var(--pink-primary-dark); }
+
+  .trend-svg {
+    width: calc(100% - 40px);
+    margin: 0 20px 8px;
+    height: auto;
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 1px 4px rgba(233, 89, 140, 0.08);
+  }
+
+  .bottom-bar {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px 20px;
+  }
+  .bottom-bar button { flex: 1; margin: 0; }
+
+  /* Add screen */
+  .add { padding-bottom: 20px; }
+
+  /* Report */
+  .bar-chart { padding: 8px 20px; }
+  .bar-row { margin-bottom: 16px; }
+  .bar-label {
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .bar-swatch {
+    width: 10px; height: 10px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+  .bar-track {
+    background: var(--pink-soft);
+    border-radius: 8px;
+    height: 14px;
+    overflow: hidden;
+  }
+  .bar-fill { height: 100%; border-radius: 8px; transition: width 0.4s; }
+  .bar-value { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+  ::selection { background: var(--pink-soft); }
+
+  /* ===================== BRAND HEADER (logo dalam app) ===================== */
+  .brand-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 20px 4px;
+  }
+  .brand-logo {
+    width: 30px; height: 30px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #f286ac, var(--pink-primary-dark));
+    color: white;
+    font-weight: 800;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(233, 89, 140, 0.35);
+  }
+  .brand-name {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--pink-primary-dark);
+    letter-spacing: 0.2px;
+  }
+
+  /* ===================== ONBOARDING LOGO ===================== */
+  .onboarding-logo {
+    width: 56px; height: 56px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #f286ac, var(--pink-primary-dark));
+    color: white;
+    font-weight: 800;
+    font-size: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 24px auto 12px;
+    box-shadow: 0 4px 14px rgba(233, 89, 140, 0.35);
+  }
+
+  /* ===================== WELCOME SCREEN ===================== */
+  .welcome {
+    position: relative;
+    min-height: 100vh;
+    background: linear-gradient(160deg, var(--pink-primary), var(--pink-primary-dark));
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .welcome-blob {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+  }
+  .blob-1 { width: 280px; height: 280px; top: -80px; left: -100px; }
+  .blob-2 { width: 220px; height: 220px; bottom: -60px; right: -80px; }
+  .welcome-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    color: white;
+    padding: 40px 28px;
+  }
+  .welcome-logo {
+    width: 72px; height: 72px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.18);
+    border: 2px solid rgba(255,255,255,0.5);
+    font-size: 36px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+  }
+  .welcome h1 { font-size: 24px; margin-bottom: 6px; }
+  .welcome-hi { font-size: 15px; opacity: 0.95; margin: 0 0 4px; }
+  .welcome-msg { font-size: 13.5px; opacity: 0.9; margin: 0 0 24px; line-height: 1.5; }
+  .welcome-features {
+    text-align: left;
+    background: rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 28px;
+  }
+  .wf-item {
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+  }
+
+  /* ===================== BOTTOM NAV ===================== */
+  .bottom-nav {
+    position: sticky;
+    bottom: 0;
+    left: 0; right: 0;
+    display: flex;
+    background: white;
+    border-top: 1px solid var(--pink-soft);
+    padding: 6px 0 10px;
+    box-shadow: 0 -2px 10px rgba(233, 89, 140, 0.08);
+  }
+  .nav-item {
+    flex: 1;
+    background: none;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 0;
+    color: var(--text-muted);
+  }
+  .nav-item.active { color: var(--pink-primary-dark); }
+  .nav-icon { font-size: 19px; }
+  .nav-label { font-size: 10.5px; font-weight: 600; }
+
+  /* ===================== FAB ===================== */
+  .fab {
+    position: absolute;
+    bottom: 78px;
+    right: 20px;
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f286ac, var(--pink-primary-dark));
+    color: white;
+    font-size: 28px;
+    font-weight: 400;
+    box-shadow: 0 4px 14px rgba(233, 89, 140, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .screen.home { position: relative; }
+
+  /* ===================== HOME extras ===================== */
+  .card-blob {
+    position: absolute;
+    top: -30px; right: -30px;
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+  }
+  .balance-card { position: relative; overflow: hidden; margin: 8px 20px 0; border-radius: 20px; }
+
+  .mini-stats { padding: 12px 20px 0; }
+  .mini-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: white;
+    border-radius: 16px;
+    padding: 12px 14px;
+    box-shadow: 0 1px 4px rgba(233, 89, 140, 0.08);
+    cursor: pointer;
+  }
+  .mini-icon { font-size: 24px; }
+  .mini-label { font-size: 11px; color: var(--text-muted); }
+  .mini-value { font-size: 15px; font-weight: 700; color: var(--pink-primary-dark); }
+
+  .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 20px 4px;
+  }
+  .filter-row input[type="date"] {
+    flex: 1;
+    margin: 0;
+    width: auto;
+    font-size: 12.5px;
+    padding: 8px 10px;
+  }
+  .filter-sep { color: var(--text-muted); font-size: 12px; }
+  .btn-filter-reset {
+    background: var(--pink-soft);
+    color: var(--pink-primary-dark);
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .tx-icon {
+    width: 38px; height: 38px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    margin-right: 10px;
+  }
+  .tx-row { display: flex; align-items: center; }
+  .tx-info { flex: 1; }
+
+  /* ===================== ADD SCREEN header ===================== */
+  .add-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px 4px;
+  }
+  .add-header h2 { padding: 0; margin: 0; }
+  .btn-close {
+    background: var(--pink-soft);
+    color: var(--pink-primary-dark);
+    width: 30px; height: 30px;
+    border-radius: 9px;
+    font-size: 13px;
+  }
+
+  /* ===================== SAVINGS SCREEN ===================== */
+  .savings-hero {
+    position: relative;
+    overflow: hidden;
+    margin: 8px 20px 0;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #f2a4c0, var(--pink-primary-dark));
+    color: white;
+    padding: 22px 20px;
+  }
+  .savings-list { padding: 16px 20px 12px; }
+  .savings-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .savings-list-header h2 { padding: 0; margin: 0; }
+  .btn-new-goal {
+    background: var(--pink-primary);
+    color: white;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 10px;
+  }
+
+  .goal-card {
+    background: white;
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 4px rgba(233, 89, 140, 0.08);
+  }
+  .goal-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .goal-name { font-weight: 700; font-size: 14px; }
+  .goal-delete { background: none; font-size: 14px; padding: 2px 6px; }
+  .goal-progress-track {
+    background: var(--pink-soft);
+    border-radius: 8px;
+    height: 12px;
+    overflow: hidden;
+  }
+  .goal-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f286ac, var(--pink-primary-dark));
+    border-radius: 8px;
+    transition: width 0.4s;
+  }
+  .goal-numbers {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin: 6px 0 10px;
+  }
+  .goal-pct { font-weight: 700; color: var(--pink-primary-dark); }
+  .btn-add-savings {
+    width: 100%;
+    background: var(--pink-soft);
+    color: var(--pink-primary-dark);
+    padding: 9px;
+    border-radius: 10px;
+    font-size: 12.5px;
+  }
+  .goal-complete-badge {
+    text-align: center;
+    background: #e6f6ec;
+    color: #1e7a44;
+    padding: 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* ===================== MODAL ===================== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(58, 44, 51, 0.45);
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 20px;
+  }
+  .modal-card {
+    background: var(--pink-bg);
+    border-radius: 18px;
+    padding: 20px 0 8px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .modal-card h3 { padding: 0 20px; margin: 0 0 4px; font-size: 17px; }
+
+  /* ===================== REPORT extras ===================== */
+  .report-section { margin-bottom: 8px; }
+  .report-section h2 { padding: 16px 20px 8px; }
+  .btn-export {
+    display: block;
+    width: calc(100% - 40px);
+    margin: 8px 20px 16px;
+    background: var(--pink-primary-dark);
+    color: white;
+    padding: 13px;
+    border-radius: 12px;
+  }
+
+  /* Screens now need bottom padding since bottom-nav is sticky, not fixed on short content */
+  .screen.home, .screen.savings, .screen.report { padding-bottom: 4px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="training-data.js"></script>
+<script src="classifier.js"></script>
+<script src="storage.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
