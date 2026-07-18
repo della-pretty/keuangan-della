@@ -22,7 +22,55 @@ const CATEGORY_ICONS = {
   Pemasukan: "💰",
   Lainnya: "📦",
 };
-const CATEGORIES = ["Makanan", "Transportasi", "Pendidikan", "Hiburan", "Belanja", "Kesehatan", "Lainnya"];
+const CLUSTER_COLORS = { Hemat: "#3ba55d", Sedang: "#e9986b", Boros: "#d94f4f" };
+const HEALTH_COLORS = { "Sangat Sehat": "#2e9e56", "Sehat": "#5bab7a", "Cukup": "#e9986b", "Perlu Perhatian": "#d94f4f" };
+
+function renderScatterSVG(labeledTx) {
+  const width = 400, height = 180, padding = 32;
+  if (!labeledTx.length) return "";
+
+  const chrono = [...labeledTx].reverse(); // oldest -> newest biar alur waktu ke kanan
+  const maxVal = Math.max(...chrono.map((t) => t.nominal), 1);
+  const n = chrono.length;
+
+  const points = chrono.map((t, i) => {
+    const x = padding + (n === 1 ? (width - padding * 2) / 2 : (i * (width - padding * 2)) / (n - 1));
+    const y = height - padding - (t.nominal / maxVal) * (height - padding * 2);
+    return { x, y, ...t };
+  });
+
+  const dots = points.map((p) => {
+    const color = CLUSTER_COLORS[p.cluster] || "#b38a94";
+    if (p.isAnomaly) {
+      return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="7" fill="none" stroke="#d94f4f" stroke-width="2" />
+              <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${color}" />`;
+    }
+    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="${color}" opacity="0.85" />`;
+  }).join("");
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" class="scatter-svg">
+      <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#f0d9e3" stroke-width="1" />
+      ${dots}
+    </svg>
+  `;
+}
+
+function renderHealthGauge(health) {
+  const color = HEALTH_COLORS[health.label] || "#b38a94";
+  const circumference = 2 * Math.PI * 42;
+  const offset = circumference * (1 - health.score / 100);
+  return `
+    <svg viewBox="0 0 110 110" class="health-gauge">
+      <circle cx="55" cy="55" r="42" fill="none" stroke="#f7dce7" stroke-width="10" />
+      <circle cx="55" cy="55" r="42" fill="none" stroke="${color}" stroke-width="10"
+        stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"
+        stroke-linecap="round" transform="rotate(-90 55 55)" />
+      <text x="55" y="52" text-anchor="middle" font-size="24" font-weight="800" fill="${color}">${health.score}</text>
+      <text x="55" y="70" text-anchor="middle" font-size="10" fill="#8c7680">/ 100</text>
+    </svg>
+  `;
+}
 
 const app = document.getElementById("app");
 
@@ -430,11 +478,20 @@ function renderAdd() {
 function renderSavings() {
   const goals = db.getSavingsGoals();
   const totalSavings = db.getTotalSavings();
+  const achievements = db.getAchievements();
 
   const goalsHtml = goals.length
     ? goals.map((g) => {
         const pct = g.target > 0 ? Math.min(100, (g.terkumpul / g.target) * 100) : 0;
         const done = pct >= 100;
+        const prediction = done ? null : db.getGoalPrediction(g.id);
+        let predictionHtml = "";
+        if (prediction && !prediction.done) {
+          const dateStr = new Date(prediction.estDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+          predictionHtml = `<div class="goal-prediction">🔮 Prediksi AI: tercapai dalam ~${prediction.weeksNeeded} minggu (sekitar ${dateStr})</div>`;
+        } else if (!done) {
+          predictionHtml = `<div class="goal-prediction muted">🔮 Nabung dulu buat lihat prediksi AI kapan target tercapai</div>`;
+        }
         return `
           <div class="goal-card">
             <div class="goal-top">
@@ -448,6 +505,7 @@ function renderSavings() {
               <span>${formatRupiah(g.terkumpul)} / ${formatRupiah(g.target)}</span>
               <span class="goal-pct">${pct.toFixed(0)}%</span>
             </div>
+            ${predictionHtml}
             ${!done ? `<button class="btn-add-savings" data-goal-add="${g.id}">+ Nabung</button>` : `<div class="goal-complete-badge">Target Tercapai! 🎉</div>`}
           </div>
         `;
@@ -461,6 +519,18 @@ function renderSavings() {
         <div class="card-blob"></div>
         <div class="balance-label">Total Tabungan Kamu</div>
         <div class="balance-value">${formatRupiah(totalSavings)}</div>
+      </div>
+
+      <div class="achievements-section">
+        <h2>Achievement 🏅</h2>
+        <div class="achievements-row">
+          ${achievements.map((a) => `
+            <div class="achievement-badge ${a.unlocked ? "unlocked" : "locked"}" title="${escapeHtml(a.desc)}">
+              <div class="achievement-icon">${a.unlocked ? a.icon : "🔒"}</div>
+              <div class="achievement-title">${escapeHtml(a.title)}</div>
+            </div>
+          `).join("")}
+        </div>
       </div>
 
       <div class="savings-list screen-flex-fill">
@@ -624,6 +694,117 @@ function renderReport() {
   const weekComp = db.getWeekComparison();
   const monthlyData = db.getMonthlySummary(6);
   const monthComp = db.getMonthComparison();
+  const insights = db.getExpenseInsights();
+  const nextMonthPred = db.predictNextMonthExpense();
+  const health = db.getFinancialHealthScore();
+  const clusters = db.getSpendingClusters();
+  const anomalies = db.detectAnomalies();
+
+  const clusterHtml = clusters ? `
+    <div class="ai-card">
+      <div class="ai-card-title">🧩 Clustering Pola Pengeluaran (K-Means)</div>
+      <div class="cluster-profile-badge" style="background:${CLUSTER_COLORS[clusters.dominantProfile]}22; color:${CLUSTER_COLORS[clusters.dominantProfile]}">
+        Profil dominan kamu: <b>${clusters.dominantProfile}</b>
+      </div>
+      <div class="cluster-bars">
+        ${["Hemat", "Sedang", "Boros"].map((label) => {
+          const count = clusters.counts[label];
+          const maxCount = Math.max(...Object.values(clusters.counts), 1);
+          const pct = (count / maxCount) * 100;
+          return `
+            <div class="cluster-bar-row">
+              <span class="cluster-bar-label" style="color:${CLUSTER_COLORS[label]}">${label}</span>
+              <div class="cluster-bar-track">
+                <div class="cluster-bar-fill" style="width:${pct}%; background:${CLUSTER_COLORS[label]}"></div>
+              </div>
+              <span class="cluster-bar-count">${count}</span>
+            </div>
+          `;
+        }).join("")}
+      </div>
+      <div class="scatter-title">Sebaran Transaksi (warna = cluster, lingkar merah = anomali)</div>
+      ${renderScatterSVG(clusters.labeledTx)}
+    </div>
+  ` : `
+    <div class="ai-card">
+      <div class="ai-card-title">🧩 Clustering Pola Pengeluaran (K-Means)</div>
+      <p class="empty-state">Minimal 3 transaksi pengeluaran dulu buat mulai clustering.</p>
+    </div>
+  `;
+
+  const anomalyHtml = `
+    <div class="ai-card">
+      <div class="ai-card-title">⚠️ Deteksi Anomali (Z-Score)</div>
+      ${anomalies.length ? `
+        <p class="anomaly-intro">${anomalies.length} transaksi terdeteksi gak biasa (menyimpang jauh dari rata-rata):</p>
+        <div class="anomaly-log">
+          ${anomalies.slice(0, 10).map((a) => `
+            <div class="anomaly-row">
+              <div class="anomaly-info">
+                <div class="anomaly-desc">${escapeHtml(a.deskripsi)}</div>
+                <div class="anomaly-meta">${escapeHtml(a.kategori)} • ${a.tanggal}</div>
+              </div>
+              <div class="anomaly-amount">${formatRupiah(a.nominal)}<span class="anomaly-z">Z=${a.zScore.toFixed(1)}</span></div>
+            </div>
+          `).join("")}
+        </div>
+      ` : `<p class="empty-state">Belum ada transaksi yang keluar dari kebiasaan kamu. Aman!</p>`}
+    </div>
+  `;
+
+  const healthHtml = `
+    <div class="ai-card health-card">
+      <div class="ai-card-title">💯 Skor Kesehatan Keuangan</div>
+      <div class="health-content">
+        ${renderHealthGauge(health)}
+        <div class="health-info">
+          <div class="health-label" style="color:${HEALTH_COLORS[health.label]}">${health.label}</div>
+          <div class="health-breakdown">
+            <div>Rasio Nabung: ${health.breakdown.savingsScore}/40</div>
+            <div>Kewajaran Transaksi: ${health.breakdown.anomalyScore}/20</div>
+            <div>Progress Target: ${health.breakdown.goalScore}/20</div>
+            <div>Konsistensi: ${health.breakdown.consistencyScore}/20</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const insightsHtml = insights ? `
+    <div class="ai-card">
+      <div class="ai-card-title">🤖 AI Analisis Pengeluaran</div>
+      <ul class="ai-insight-list">
+        <li>Kategori terbesar kamu adalah <b>${escapeHtml(insights.topCategory)}</b> (${insights.topPct.toFixed(0)}% dari total pengeluaran).</li>
+        <li>Kamu paling sering bertransaksi di kategori <b>${escapeHtml(insights.mostFrequentCategory)}</b> (${insights.mostFrequentCount}x).</li>
+        <li>Rata-rata nominal per transaksi kamu sekitar <b>${formatRupiah(insights.avgTransaction)}</b>.</li>
+        <li>Dari total ${insights.totalTransactions} transaksi, pengeluaran minggu ini ${insights.weekComparison.direction === "sama" ? "stabil" : (insights.weekComparison.direction + " " + insights.weekComparison.pct.toFixed(0) + "%")} dibanding minggu lalu.</li>
+      </ul>
+    </div>
+  ` : `
+    <div class="ai-card">
+      <div class="ai-card-title">🤖 AI Analisis Pengeluaran</div>
+      <p class="empty-state">Catat beberapa transaksi dulu biar AI bisa nganalisis pola pengeluaran kamu.</p>
+    </div>
+  `;
+
+  let predictionHtml;
+  if (nextMonthPred.confidence === "belum-ada-data") {
+    predictionHtml = `<p class="empty-state">Belum ada data pengeluaran buat diprediksi.</p>`;
+  } else {
+    const confLabel = { tinggi: "Keyakinan Tinggi", sedang: "Keyakinan Sedang", rendah: "Keyakinan Rendah" }[nextMonthPred.confidence] || "";
+    const trendIcon = nextMonthPred.trend === "naik" ? "📈" : nextMonthPred.trend === "turun" ? "📉" : "➡️";
+    predictionHtml = `
+      <div class="prediction-value">${formatRupiah(nextMonthPred.prediction)}</div>
+      <div class="prediction-meta">${trendIcon} Tren ${nextMonthPred.trend} &nbsp;•&nbsp; ${confLabel}</div>
+      <div class="prediction-note">Diprediksi pakai regresi linear dari riwayat pengeluaran bulanan kamu.</div>
+    `;
+  }
+  const predictionCardHtml = `
+    <div class="ai-card prediction-card">
+      <div class="ai-card-title">🔮 Prediksi Pengeluaran Bulan Depan</div>
+      ${predictionHtml}
+    </div>
+  `;
 
   const barsHtml = summary.length
     ? summary.map(([label, value]) => {
@@ -652,6 +833,12 @@ function renderReport() {
       ${brandHeaderHtml()}
 
       <div class="screen-flex-fill">
+        ${healthHtml}
+        ${predictionCardHtml}
+        ${insightsHtml}
+        ${clusterHtml}
+        ${anomalyHtml}
+
         <div class="report-section">
           <h2>Tren Mingguan</h2>
           <div class="trend-summary ${weekComp.direction}">
