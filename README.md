@@ -1,75 +1,109 @@
-# Catatan Keuangan Mahasiswa (Versi Web App / PWA)
+# Catatan Keuangan Mahasiswa (Versi Web App / PWA + Firebase)
 
-Versi ini **gak perlu di-compile/build sama sekali**. Tinggal upload file-file
-ini ke hosting gratis, terus buka linknya di HP, dan bisa di-"Add to Home
-Screen" biar kayak aplikasi beneran.
+Versi ini pakai **Firebase Authentication** buat login/registrasi beneran
+(email verifikasi, password, reset password lewat email), dan **Firebase
+Realtime Database** buat nyimpen data supaya bisa diakses dari perangkat
+manapun selama login pakai akun yang sama.
+
+## Fitur Login/Akun
+- Registrasi pakai email + password (1 email = 1 akun, otomatis ditegakkan
+  Firebase)
+- Verifikasi email wajib sebelum bisa masuk ke aplikasi
+- Login dari perangkat manapun pakai email + password yang sama
+- Lupa password? Bisa reset lewat link yang dikirim ke email
+- Data (transaksi, tabungan) tersimpan di cloud, bukan cuma di 1 HP
 
 ## Isi Folder
 ```
 keuangan_pwa/
-├── index.html          # halaman utama + semua styling
-├── app.js               # logika UI & navigasi antar layar
-├── classifier.js          # model Naive Bayes (JavaScript)
-├── storage.js               # penyimpanan data (localStorage)
-├── training-data.js           # data latih kategori
-├── manifest.json                # konfigurasi PWA
-├── sw.js                         # service worker (fitur offline)
+├── index.html            # halaman utama + semua styling
+├── app.js                 # logika UI, navigasi, & alur autentikasi
+├── auth.js                  # modul Firebase Authentication
+├── firebase-config.js         # konfigurasi project Firebase kamu
+├── classifier.js                # model Naive Bayes (JavaScript)
+├── storage.js                     # baca/tulis data ke Firebase Realtime DB
+├── training-data.js                 # data latih kategori
+├── manifest.json                      # konfigurasi PWA
+├── sw.js                                # service worker (cache offline)
+├── database-rules.json                    # rules keamanan (BUKAN buat diupload
+│                                             ke repo, tapi dipaste manual di
+│                                             Firebase Console)
 └── icons/
     ├── icon-192.png
     └── icon-512.png
 ```
 
-## Cara Hosting via GitHub Pages (gratis, paling gampang)
+## Setup Firebase (WAJIB dilakukan dulu sebelum hosting)
 
-1. Buka repo GitHub kamu (`keuangan-della`)
-2. Hapus/abaikan file-file lama (main.py, buildozer.spec, dll) — **gak
-   kepake lagi** buat versi web ini. Boleh dibiarin juga gak masalah, gak
-   akan ganggu.
-3. Upload semua file di folder `keuangan_pwa` ini ke repo:
-   - Klik **Add file → Upload files**
-   - Upload `index.html`, `app.js`, `classifier.js`, `storage.js`,
-     `training-data.js`, `manifest.json`, `sw.js`
-   - Buat folder `icons` dengan cara ketik `icons/icon-192.png` di kolom
-     nama file saat upload (GitHub otomatis bikin foldernya), upload kedua
-     file icon di situ
-   - Klik **Commit changes**
-4. Aktifkan GitHub Pages:
-   - Klik tab **Settings** di repo
-   - Di sidebar kiri, klik **Pages**
-   - Di bagian **Source**, pilih branch **main**, folder **/ (root)**
-   - Klik **Save**
-5. Tunggu 1-2 menit, nanti muncul link kayak:
-   `https://della-pretty.github.io/keuangan-della/`
-6. Buka link itu di HP kamu (lewat Chrome)
-
-## Cara "Install" ke HP (Add to Home Screen)
-
-**Di Android (Chrome):**
-1. Buka link aplikasinya di Chrome
-2. Ketuk titik tiga (⋮) di pojok kanan atas
-3. Pilih **"Add to Home screen"** / "Tambahkan ke layar utama"
-4. Konfirmasi nama aplikasinya
-5. Icon aplikasi bakal muncul di homescreen HP kamu, bisa dibuka
-   full-screen kayak aplikasi asli (gak ada address bar browser)
-
-## Testing di Laptop (opsional, sebelum di-hosting)
-
-Buka file `index.html` langsung di browser (double click), atau kalau mau
-fitur PWA-nya jalan penuh, jalankan local server dulu:
+### 1. Pasang security rules di Realtime Database
+- Buka Firebase Console -> project kamu -> Realtime Database -> tab Rules
+- Hapus isi yang ada, ganti dengan isi file `database-rules.json`:
+```json
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth !== null && auth.uid === $uid",
+        ".write": "auth !== null && auth.uid === $uid"
+      }
+    }
+  }
+}
 ```
-python -m http.server 8000
-```
-lalu buka `http://localhost:8000` di browser.
+- Klik **Publish**
+
+Rules ini penting banget -- tanpa ini, database kamu bakal ketutup total
+(gak ada yang bisa baca/tulis). Rules di atas mastiin tiap user CUMA bisa
+akses data mereka sendiri.
+
+### 2. Upload semua file ke GitHub (termasuk 2 file BARU)
+File yang perlu diupload ke repo `keuangan-della` (timpa yang lama +
+tambahin yang baru):
+- `index.html`, `app.js`, `storage.js` -- **update** (isinya berubah)
+- `auth.js`, `firebase-config.js` -- **file baru**, upload pertama kali
+- `classifier.js`, `training-data.js`, `manifest.json`, `sw.js`,
+  folder `icons` -- gak berubah, boleh upload ulang juga gapapa
+
+**Jangan upload** `database-rules.json` ke GitHub Pages -- itu cuma buat
+dipaste manual di Firebase Console (langkah 1 di atas).
+
+## Cara Kerja Alur Login
+
+1. **Daftar** -> isi nama, email, tanggal lahir, password -> otomatis
+   dikirim email verifikasi
+2. **Cek email** -> klik link verifikasi di email tersebut
+3. **Balik ke aplikasi** -> klik "Saya Sudah Verifikasi" -> masuk ke
+   halaman Welcome -> mulai pakai aplikasi
+4. **Login berikutnya** (di HP manapun) -> masukin email + password yang
+   sama -> langsung masuk, data otomatis muncul (karena tersimpan di cloud)
+5. **Lupa password?** -> klik "Lupa Password?" di halaman login ->
+   masukin email -> cek email buat link reset
+
+## Testing
+
+Karena ini butuh koneksi internet beneran ke server Firebase, coba
+langsung di browser HP/laptop kamu (gak bisa dites offline). Kalau ada
+error pas registrasi/login, screenshot pesan errornya.
 
 ## Catatan Teknis buat Skripsi
 
-- Aplikasi ini disebut **PWA (Progressive Web App)** — teknologi yang
-  memungkinkan web app terasa dan berfungsi seperti aplikasi native
-- Model klasifikasi tetap **Naive Bayes**, cuma diimplementasi ulang di
-  JavaScript (logikanya identik dengan versi Python)
-- Data disimpan di **localStorage** browser (pengganti SQLite di versi
-  sebelumnya) — semua data tetap tersimpan di HP, tidak dikirim ke server
-  manapun
-- Bagian ini bisa dijelaskan di BAB Metode: alasan pemilihan pendekatan PWA
-  dibanding native Android (kemudahan distribusi, tidak perlu proses
-  compile/build yang kompleks, cross-platform)
+- **Firebase Authentication**: layanan identity/auth-as-a-service dari
+  Google, dipakai buat autentikasi user (bisa dijelasin di BAB Metode
+  sebagai bagian dari arsitektur sistem)
+- **Firebase Realtime Database**: NoSQL cloud database, data disimpan per
+  user berdasarkan UID unik dari Firebase Auth
+- Password user tidak pernah disimpan di database kamu -- itu semua
+  ditangani terenkripsi oleh Firebase, kamu cuma dapet UID sebagai
+  referensi
+- Aplikasi ini menerapkan model client-server sederhana: frontend
+  (GitHub Pages) berkomunikasi dengan backend-as-a-service (Firebase)
+  lewat SDK, tanpa perlu bikin server sendiri
+
+## Fitur AI/Informatika Lainnya
+- Kategorisasi otomatis pakai Naive Bayes
+- Deteksi anomali pengeluaran pakai Z-Score
+- Clustering pola pengeluaran pakai K-Means
+- Prediksi pengeluaran bulan depan pakai regresi linear
+- Skor kesehatan keuangan (composite index)
+- Export laporan ke Excel
+- Achievement/gamifikasi nabung

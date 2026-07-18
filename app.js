@@ -3,27 +3,32 @@
 const APP_NAME = "Della's Finance";
 
 const CATEGORY_COLORS = {
-  Makanan: "#f28fab",
-  Transportasi: "#d966a3",
-  Pendidikan: "#c05aa6",
-  Hiburan: "#f24d8c",
-  Belanja: "#e680b3",
-  Kesehatan: "#cc73bf",
-  Pemasukan: "#3ba55d",
-  Lainnya: "#b38a94",
+  Makanan: "#d9527a",
+  Transportasi: "#c99a5b",
+  Pendidikan: "#8a6b9e",
+  Hiburan: "#c2577a",
+  Belanja: "#b8724f",
+  Kesehatan: "#5f9e8f",
+  Pemasukan: "#3d8361",
+  Lainnya: "#8d7b8a",
 };
-const CATEGORY_ICONS = {
-  Makanan: "🍔",
-  Transportasi: "🛵",
-  Pendidikan: "📚",
-  Hiburan: "🎬",
-  Belanja: "🛍️",
-  Kesehatan: "💊",
-  Pemasukan: "💰",
-  Lainnya: "📦",
+const CLUSTER_COLORS = { Hemat: "#3d8361", Sedang: "#c99a5b", Boros: "#c65454" };
+const HEALTH_COLORS = { "Sangat Sehat": "#3d8361", "Sehat": "#5f9e70", "Cukup": "#c99a5b", "Perlu Perhatian": "#c65454" };
+
+const NAV_ICONS = {
+  home: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>`,
+  savings: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="13" rx="8" ry="6"/><path d="M12 7V5.5a2 2 0 0 1 2-2h1.5"/><circle cx="16" cy="12" r="0.6" fill="currentColor" stroke="none"/><path d="M4.5 13.5 2.5 15M19.5 13.5l2 1.5M9 19l-.7 2M15 19l.7 2"/></svg>`,
+  report: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>`,
 };
-const CLUSTER_COLORS = { Hemat: "#3ba55d", Sedang: "#e9986b", Boros: "#d94f4f" };
-const HEALTH_COLORS = { "Sangat Sehat": "#2e9e56", "Sehat": "#5bab7a", "Cukup": "#e9986b", "Perlu Perhatian": "#d94f4f" };
+
+function categoryBadge(category, size) {
+  const color = CATEGORY_COLORS[category] || "#8d7b8a";
+  const initial = (category || "?").charAt(0).toUpperCase();
+  const dim = size || 38;
+  return `<div class="cat-badge" style="width:${dim}px;height:${dim}px;background:${color}18;color:${color}">${initial}</div>`;
+}
+
+const CATEGORIES = ["Makanan", "Transportasi", "Pendidikan", "Hiburan", "Belanja", "Kesehatan", "Lainnya"];
 
 function renderScatterSVG(labeledTx) {
   const width = 400, height = 180, padding = 32;
@@ -89,18 +94,35 @@ function navigate(screen) {
   render();
 }
 
-function render() {
-  const screen = window.location.hash.replace("#", "") ||
-    (db.isRegistered() ? "pinlock" : "onboarding");
+const PROTECTED_SCREENS = ["home", "add", "report", "savings"];
 
-  if (screen === "onboarding") return renderOnboarding();
+function routeAuto() {
+  const user = authModule.currentUser;
+  if (!user) { navigate("login"); return; }
+  if (!user.emailVerified) { navigate("verify-email"); return; }
+  navigate("home");
+}
+
+function render() {
+  const screen = window.location.hash.replace("#", "");
+
+  if (!screen) { routeAuto(); return; }
+
+  if (PROTECTED_SCREENS.includes(screen) && !(authModule.currentUser && authModule.currentUser.emailVerified)) {
+    navigate("login");
+    return;
+  }
+
+  if (screen === "register") return renderRegister();
+  if (screen === "verify-email") return renderVerifyEmail();
+  if (screen === "login") return renderLogin();
+  if (screen === "forgot-password") return renderForgotPassword();
   if (screen === "welcome") return renderWelcome();
-  if (screen === "pinlock") return renderPinlock();
   if (screen === "home") return renderHome();
   if (screen === "add") return renderAdd();
   if (screen === "report") return renderReport();
   if (screen === "savings") return renderSavings();
-  return renderHome();
+  return renderLogin();
 }
 
 // ----------------------------- BRAND HEADER (logo dalam app) -----------------------------
@@ -109,16 +131,29 @@ function brandHeaderHtml() {
     <div class="brand-header">
       <div class="brand-logo">D</div>
       <div class="brand-name">${APP_NAME}</div>
+      <button class="btn-logout" data-logout="1">Keluar</button>
     </div>
   `;
+}
+
+function attachLogout() {
+  const btn = document.querySelector("[data-logout]");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    if (confirm("Yakin mau keluar?")) {
+      await authModule.logout();
+      db.clearCache();
+      navigate("login");
+    }
+  });
 }
 
 // ----------------------------- BOTTOM NAV -----------------------------
 function bottomNavHtml(active) {
   const items = [
-    { key: "home", icon: "🏠", label: "Home" },
-    { key: "savings", icon: "🐷", label: "Tabungan" },
-    { key: "report", icon: "📊", label: "Laporan" },
+    { key: "home", icon: NAV_ICONS.home, label: "Home" },
+    { key: "savings", icon: NAV_ICONS.savings, label: "Tabungan" },
+    { key: "report", icon: NAV_ICONS.report, label: "Laporan" },
   ];
   return `
     <div class="bottom-nav">
@@ -138,67 +173,131 @@ function attachBottomNav() {
   });
 }
 
-// ----------------------------- ONBOARDING -----------------------------
-function renderOnboarding() {
+// ----------------------------- REGISTER -----------------------------
+function renderRegister() {
   app.innerHTML = `
     <div class="screen onboarding">
       <div class="onboarding-logo">D</div>
-      <h1>Selamat Datang! 👋</h1>
-      <p class="subtitle">Isi data diri kamu dulu ya sebelum mulai.</p>
-      <form id="onboarding-form">
+      <h1>Buat Akun</h1>
+      <p class="subtitle">Isi data diri kamu buat mulai pakai ${APP_NAME}.</p>
+      <form id="register-form">
         <label>Nama Lengkap</label>
-        <input type="text" id="ob-nama" placeholder="contoh: Aptrilia Nadiella" required />
+        <input type="text" id="reg-nama" placeholder="contoh: Aptrilia Nadiella" required />
 
         <label>Email</label>
-        <input type="email" id="ob-email" placeholder="contoh: nama@email.com" required />
+        <input type="email" id="reg-email" placeholder="contoh: nama@email.com" required />
 
         <label>Tanggal Lahir</label>
-        <input type="date" id="ob-ttl" required />
+        <input type="date" id="reg-ttl" required />
 
-        <label>Buat PIN (4-6 digit angka)</label>
-        <input type="password" id="ob-pin" inputmode="numeric" pattern="[0-9]*" placeholder="contoh: 1234" required />
+        <label>Password (minimal 6 karakter)</label>
+        <input type="password" id="reg-password" placeholder="buat password" required />
 
-        <label>Konfirmasi PIN</label>
-        <input type="password" id="ob-pin-confirm" inputmode="numeric" pattern="[0-9]*" placeholder="ulangi PIN" required />
+        <label>Konfirmasi Password</label>
+        <input type="password" id="reg-password-confirm" placeholder="ulangi password" required />
 
-        <p class="error" id="ob-error"></p>
-        <button type="submit" class="btn-primary">Simpan & Mulai</button>
+        <p class="error" id="reg-error"></p>
+        <button type="submit" class="btn-primary" id="reg-submit">Daftar</button>
       </form>
+      <button id="btn-to-login" class="btn-link-dark">Sudah punya akun? Masuk</button>
     </div>
   `;
 
-  document.getElementById("onboarding-form").addEventListener("submit", (e) => {
+  document.getElementById("btn-to-login").addEventListener("click", () => navigate("login"));
+
+  document.getElementById("register-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const nama = document.getElementById("ob-nama").value.trim();
-    const email = document.getElementById("ob-email").value.trim();
-    const ttl = document.getElementById("ob-ttl").value;
-    const pin = document.getElementById("ob-pin").value.trim();
-    const pinConfirm = document.getElementById("ob-pin-confirm").value.trim();
-    const errorEl = document.getElementById("ob-error");
+    const nama = document.getElementById("reg-nama").value.trim();
+    const email = document.getElementById("reg-email").value.trim();
+    const ttl = document.getElementById("reg-ttl").value;
+    const password = document.getElementById("reg-password").value;
+    const passwordConfirm = document.getElementById("reg-password-confirm").value;
+    const errorEl = document.getElementById("reg-error");
+    const submitBtn = document.getElementById("reg-submit");
 
-    if (!nama || !email || !ttl) {
-      errorEl.textContent = "Semua data diri wajib diisi.";
-      return;
-    }
-    if (!/^\d{4,6}$/.test(pin)) {
-      errorEl.textContent = "PIN harus 4-6 digit angka.";
-      return;
-    }
-    if (pin !== pinConfirm) {
-      errorEl.textContent = "Konfirmasi PIN tidak cocok.";
-      return;
-    }
+    if (!nama || !email || !ttl) { errorEl.textContent = "Semua data diri wajib diisi."; return; }
+    if (password.length < 6) { errorEl.textContent = "Password minimal 6 karakter."; return; }
+    if (password !== passwordConfirm) { errorEl.textContent = "Konfirmasi password tidak cocok."; return; }
 
-    db.saveProfile(nama, email, ttl, pin);
-    navigate("welcome");
+    errorEl.textContent = "";
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Memproses...";
+
+    try {
+      await authModule.register(nama, email, ttl, password);
+      navigate("verify-email");
+    } catch (err) {
+      errorEl.textContent = authModule.translateError(err);
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Daftar";
+    }
+  });
+}
+
+// ----------------------------- VERIFIKASI EMAIL -----------------------------
+function renderVerifyEmail() {
+  const user = authModule.currentUser;
+  const email = user ? user.email : "";
+
+  app.innerHTML = `
+    <div class="screen onboarding verify-email-screen">
+      <div class="onboarding-logo">D</div>
+      <h1>Verifikasi Email Kamu</h1>
+      <p class="subtitle">
+        Kami sudah kirim link verifikasi ke <b>${escapeHtml(email)}</b>.
+        Buka email itu (cek juga folder Spam), lalu klik link-nya.
+      </p>
+      <p class="error" id="verify-error"></p>
+      <p class="verify-success" id="verify-success"></p>
+      <button id="btn-check-verified" class="btn-primary">Saya Sudah Verifikasi</button>
+      <button id="btn-resend" class="btn-secondary" style="margin-top:10px;">Kirim Ulang Email</button>
+      <button id="btn-logout-verify" class="btn-link-dark">Logout</button>
+    </div>
+  `;
+
+  document.getElementById("btn-check-verified").addEventListener("click", async (e) => {
+    const errorEl = document.getElementById("verify-error");
+    const btn = e.target;
+    btn.disabled = true;
+    btn.textContent = "Mengecek...";
+    try {
+      await user.reload();
+      if (auth.currentUser.emailVerified) {
+        await db.loadUserData(auth.currentUser.uid);
+        navigate("welcome");
+      } else {
+        errorEl.textContent = "Email belum terverifikasi. Cek inbox/spam kamu dulu ya.";
+      }
+    } catch (err) {
+      errorEl.textContent = authModule.translateError(err);
+    }
+    btn.disabled = false;
+    btn.textContent = "Saya Sudah Verifikasi";
+  });
+
+  document.getElementById("btn-resend").addEventListener("click", async (e) => {
+    const successEl = document.getElementById("verify-success");
+    const errorEl = document.getElementById("verify-error");
+    errorEl.textContent = "";
+    try {
+      await authModule.resendVerification();
+      successEl.textContent = "Email verifikasi baru sudah dikirim.";
+    } catch (err) {
+      errorEl.textContent = authModule.translateError(err);
+    }
+  });
+
+  document.getElementById("btn-logout-verify").addEventListener("click", async () => {
+    await authModule.logout();
+    navigate("login");
   });
 }
 
 // ----------------------------- WELCOME (ditampilkan sekali setelah registrasi) -----------------------------
 const WELCOME_MESSAGES = [
-  "Yuk mulai catat setiap rupiah, biar dompet kamu makin terkontrol! 💸",
-  "Satu langkah kecil hari ini, dompet lebih sehat besok. Semangat! 🌸",
-  "Financial goals kamu dimulai dari sini. Let's go! ✨",
+  "Yuk mulai catat setiap rupiah, biar dompet kamu makin terkontrol.",
+  "Satu langkah kecil hari ini, dompet lebih sehat besok.",
+  "Financial goals kamu dimulai dari sini.",
 ];
 
 function renderWelcome() {
@@ -213,12 +312,12 @@ function renderWelcome() {
       <div class="welcome-content">
         <div class="welcome-logo">D</div>
         <h1>Welcome to ${APP_NAME}!</h1>
-        <p class="welcome-hi">Hai, ${escapeHtml(firstName)} 👋</p>
+        <p class="welcome-hi">Hai, ${escapeHtml(firstName)}</p>
         <p class="welcome-msg">${message}</p>
         <div class="welcome-features">
-          <div class="wf-item">🔮 <span>Kategorisasi otomatis pakai AI</span></div>
-          <div class="wf-item">🐷 <span>Target nabung yang bisa kamu pantau</span></div>
-          <div class="wf-item">📈 <span>Tren pengeluaran mingguan & bulanan</span></div>
+          <div class="wf-item"><span>Kategorisasi otomatis pakai AI</span></div>
+          <div class="wf-item"><span>Target nabung yang bisa kamu pantau</span></div>
+          <div class="wf-item"><span>Tren pengeluaran mingguan & bulanan</span></div>
         </div>
         <button id="btn-start" class="btn-white">Mulai Sekarang</button>
       </div>
@@ -231,43 +330,98 @@ function renderWelcome() {
   });
 }
 
-// ----------------------------- PIN LOCK -----------------------------
-function renderPinlock() {
-  const profile = db.getProfile();
-  const firstName = profile ? profile.nama.split(" ")[0] : "";
-
+// ----------------------------- LOGIN -----------------------------
+function renderLogin() {
   app.innerHTML = `
     <div class="screen pinlock">
       <div class="pinlock-spacer"></div>
       <div class="pinlock-logo">D</div>
-      <h1>Halo, ${escapeHtml(firstName)}! 👋</h1>
-      <p class="subtitle-light">Masukkan PIN buat masuk</p>
-      <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*"
-             maxlength="6" class="pin-box" placeholder="••••" autofocus />
-      <p class="error-light" id="pin-error"></p>
-      <button id="btn-unlock" class="btn-white">Masuk</button>
+      <h1>${APP_NAME}</h1>
+      <p class="subtitle-light">Masuk ke akun kamu</p>
+
+      <form id="login-form" class="login-form">
+        <input type="email" id="login-email" placeholder="Email" required />
+        <input type="password" id="login-password" placeholder="Password" required />
+        <p class="error-light" id="login-error"></p>
+        <button type="submit" class="btn-white" id="login-submit">Masuk</button>
+      </form>
+
+      <button id="btn-forgot" class="btn-link">Lupa Password?</button>
       <div class="pinlock-spacer"></div>
-      <button id="btn-reset" class="btn-link">Lupa PIN? (Reset Aplikasi)</button>
+      <button id="btn-to-register" class="btn-link">Belum punya akun? Daftar</button>
     </div>
   `;
 
-  const pinInput = document.getElementById("pin-input");
-  const checkPin = () => {
-    if (db.verifyPin(pinInput.value.trim())) {
-      navigate("home");
-    } else {
-      document.getElementById("pin-error").textContent = "PIN salah, coba lagi.";
-      pinInput.value = "";
-    }
-  };
-  document.getElementById("btn-unlock").addEventListener("click", checkPin);
-  pinInput.addEventListener("keydown", (e) => { if (e.key === "Enter") checkPin(); });
+  document.getElementById("btn-forgot").addEventListener("click", () => navigate("forgot-password"));
+  document.getElementById("btn-to-register").addEventListener("click", () => navigate("register"));
 
-  document.getElementById("btn-reset").addEventListener("click", () => {
-    if (confirm("Semua data (profil & transaksi) akan dihapus. Yakin mau reset?")) {
-      db.resetAll();
-      navigate("onboarding");
+  document.getElementById("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    const errorEl = document.getElementById("login-error");
+    const submitBtn = document.getElementById("login-submit");
+
+    errorEl.textContent = "";
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Memproses...";
+
+    try {
+      const user = await authModule.login(email, password);
+      await db.loadUserData(user.uid);
+      navigate("home");
+    } catch (err) {
+      if (err.code === "auth/email-not-verified") {
+        navigate("verify-email");
+      } else {
+        errorEl.textContent = authModule.translateError(err);
+      }
     }
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Masuk";
+  });
+}
+
+// ----------------------------- LUPA PASSWORD -----------------------------
+function renderForgotPassword() {
+  app.innerHTML = `
+    <div class="screen onboarding">
+      <div class="onboarding-logo">D</div>
+      <h1>Lupa Password</h1>
+      <p class="subtitle">Masukkan email akun kamu, nanti kami kirimin link buat bikin password baru.</p>
+      <form id="forgot-form">
+        <label>Email</label>
+        <input type="email" id="forgot-email" placeholder="contoh: nama@email.com" required />
+        <p class="error" id="forgot-error"></p>
+        <p class="verify-success" id="forgot-success"></p>
+        <button type="submit" class="btn-primary" id="forgot-submit">Kirim Link Reset</button>
+      </form>
+      <button id="btn-back-login" class="btn-link-dark">Kembali ke Login</button>
+    </div>
+  `;
+
+  document.getElementById("btn-back-login").addEventListener("click", () => navigate("login"));
+
+  document.getElementById("forgot-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("forgot-email").value.trim();
+    const errorEl = document.getElementById("forgot-error");
+    const successEl = document.getElementById("forgot-success");
+    const submitBtn = document.getElementById("forgot-submit");
+
+    errorEl.textContent = "";
+    successEl.textContent = "";
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Mengirim...";
+
+    try {
+      await authModule.resetPassword(email);
+      successEl.textContent = "Link reset password sudah dikirim. Cek inbox/spam email kamu.";
+    } catch (err) {
+      errorEl.textContent = authModule.translateError(err);
+    }
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Kirim Link Reset";
   });
 }
 
@@ -324,12 +478,10 @@ function renderHome() {
   const listHtml = transactions.length
     ? transactions.slice(0, 50).map((t) => `
         <div class="tx-row">
-          <div class="tx-icon" style="background:${(CATEGORY_COLORS[t.kategori] || "#b38a94")}22">
-            ${CATEGORY_ICONS[t.kategori] || "📦"}
-          </div>
+          ${categoryBadge(t.kategori)}
           <div class="tx-info">
             <div class="tx-desc">${escapeHtml(t.deskripsi)}</div>
-            <div class="tx-meta">${escapeHtml(t.kategori)} • ${t.tanggal}</div>
+            <div class="tx-meta">${escapeHtml(t.kategori)} · ${t.tanggal}</div>
           </div>
           <div class="tx-amount ${t.tipe === "Pemasukan" ? "income" : "expense"}">
             ${t.tipe === "Pemasukan" ? "+" : "-"}${formatRupiah(t.nominal)}
@@ -340,7 +492,7 @@ function renderHome() {
 
   const weekBadge = (weekComp.thisWeek > 0 || weekComp.lastWeek > 0)
     ? `<div class="week-banner ${weekComp.direction}">
-         ${weekComp.direction === "naik" ? "📈" : weekComp.direction === "turun" ? "📉" : "➡️"}
+         ${weekComp.direction === "naik" ? "↑" : weekComp.direction === "turun" ? "↓" : "→"}
          Minggu ini ${weekComp.direction === "sama" ? "sama seperti" : (weekComp.direction + " " + weekComp.pct.toFixed(0) + "% dari")} minggu lalu
        </div>`
     : "";
@@ -353,12 +505,12 @@ function renderHome() {
         <div class="card-blob"></div>
         <div class="balance-label">Total Saldo</div>
         <div class="balance-value">${formatRupiah(balance)}</div>
-        <div class="balance-detail">Masuk ${formatRupiah(income)} &nbsp;•&nbsp; Keluar ${formatRupiah(expense)}</div>
+        <div class="balance-detail">Masuk ${formatRupiah(income)} &nbsp;·&nbsp; Keluar ${formatRupiah(expense)}</div>
       </div>
 
       <div class="mini-stats">
         <div class="mini-stat-card savings-mini" data-nav="savings">
-          <span class="mini-icon">🐷</span>
+          <span class="mini-icon">${NAV_ICONS.savings}</span>
           <div>
             <div class="mini-label">Total Tabungan</div>
             <div class="mini-value">${formatRupiah(totalSavings)}</div>
@@ -368,14 +520,19 @@ function renderHome() {
 
       ${weekBadge}
 
-      <div class="filter-row">
-        <input type="date" id="filter-start" value="${homeFilter.start}" />
-        <span class="filter-sep">—</span>
-        <input type="date" id="filter-end" value="${homeFilter.end}" />
-        <button id="btn-filter-reset" class="btn-filter-reset" title="Reset filter">✕</button>
+      <div class="history-panel">
+        <div class="history-header">
+          <h2>Riwayat Transaksi</h2>
+        </div>
+        <div class="filter-row">
+          <input type="date" id="filter-start" value="${homeFilter.start}" />
+          <span class="filter-sep">–</span>
+          <input type="date" id="filter-end" value="${homeFilter.end}" />
+          <button id="btn-filter-reset" class="btn-filter-reset" title="Reset filter">✕</button>
+        </div>
+        <div class="tx-list">${listHtml}</div>
       </div>
 
-      <div class="tx-list">${listHtml}</div>
       ${bottomNavHtml("home")}
       <button id="fab-add" class="fab">+</button>
     </div>
@@ -396,6 +553,7 @@ function renderHome() {
   });
   document.querySelector(".savings-mini").addEventListener("click", () => navigate("savings"));
   attachBottomNav();
+  attachLogout();
 }
 
 // ----------------------------- ADD TRANSACTION -----------------------------
@@ -419,11 +577,11 @@ function renderAdd() {
         <option value="Pemasukan">Pemasukan</option>
       </select>
 
-      <button id="btn-predict" class="btn-predict">🔮 Prediksi Kategori (AI)</button>
+      <button id="btn-predict" class="btn-predict">Prediksi Kategori (AI)</button>
 
       <label>Kategori</label>
       <select id="add-kategori">
-        ${CATEGORIES.map((c) => `<option value="${c}">${CATEGORY_ICONS[c]} ${c}</option>`).join("")}
+        ${CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join("")}
       </select>
       <p class="confidence" id="add-confidence"></p>
 
@@ -457,20 +615,29 @@ function renderAdd() {
 
   document.getElementById("btn-cancel").addEventListener("click", () => navigate("home"));
 
-  document.getElementById("btn-save").addEventListener("click", () => {
+  document.getElementById("btn-save").addEventListener("click", async (e) => {
     const desc = document.getElementById("add-desc").value.trim();
     const nominalStr = document.getElementById("add-nominal").value.trim();
     const tipe = document.getElementById("add-tipe").value;
     let kategori = document.getElementById("add-kategori").value;
     const errorEl = document.getElementById("add-error");
+    const btn = e.target;
 
     if (!desc) { errorEl.textContent = "Deskripsi tidak boleh kosong."; return; }
     if (!nominalStr || Number(nominalStr) <= 0) { errorEl.textContent = "Nominal harus lebih dari 0."; return; }
 
     if (tipe === "Pemasukan") kategori = "Pemasukan";
 
-    db.addTransaction(desc, kategori, tipe, Number(nominalStr));
-    navigate("home");
+    btn.disabled = true;
+    btn.textContent = "Menyimpan...";
+    try {
+      await db.addTransaction(desc, kategori, tipe, Number(nominalStr));
+      navigate("home");
+    } catch (err) {
+      errorEl.textContent = "Gagal menyimpan, cek koneksi internet kamu.";
+      btn.disabled = false;
+      btn.textContent = "Simpan";
+    }
   });
 }
 
@@ -488,15 +655,15 @@ function renderSavings() {
         let predictionHtml = "";
         if (prediction && !prediction.done) {
           const dateStr = new Date(prediction.estDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
-          predictionHtml = `<div class="goal-prediction">🔮 Prediksi AI: tercapai dalam ~${prediction.weeksNeeded} minggu (sekitar ${dateStr})</div>`;
+          predictionHtml = `<div class="goal-prediction">Prediksi AI: tercapai dalam ~${prediction.weeksNeeded} minggu (sekitar ${dateStr})</div>`;
         } else if (!done) {
-          predictionHtml = `<div class="goal-prediction muted">🔮 Nabung dulu buat lihat prediksi AI kapan target tercapai</div>`;
+          predictionHtml = `<div class="goal-prediction muted">Nabung dulu buat lihat prediksi AI kapan target tercapai</div>`;
         }
         return `
           <div class="goal-card">
             <div class="goal-top">
-              <div class="goal-name">${done ? "🎉" : "🐷"} ${escapeHtml(g.nama)}</div>
-              <button class="goal-delete" data-goal-delete="${g.id}">🗑️</button>
+              <div class="goal-name">${escapeHtml(g.nama)}</div>
+              <button class="goal-delete" data-goal-delete="${g.id}">Hapus</button>
             </div>
             <div class="goal-progress-track">
               <div class="goal-progress-fill" style="width:${pct}%"></div>
@@ -506,7 +673,7 @@ function renderSavings() {
               <span class="goal-pct">${pct.toFixed(0)}%</span>
             </div>
             ${predictionHtml}
-            ${!done ? `<button class="btn-add-savings" data-goal-add="${g.id}">+ Nabung</button>` : `<div class="goal-complete-badge">Target Tercapai! 🎉</div>`}
+            ${!done ? `<button class="btn-add-savings" data-goal-add="${g.id}">+ Nabung</button>` : `<div class="goal-complete-badge">Target Tercapai</div>`}
           </div>
         `;
       }).join("")
@@ -522,11 +689,11 @@ function renderSavings() {
       </div>
 
       <div class="achievements-section">
-        <h2>Achievement 🏅</h2>
+        <h2>Achievement</h2>
         <div class="achievements-row">
           ${achievements.map((a) => `
             <div class="achievement-badge ${a.unlocked ? "unlocked" : "locked"}" title="${escapeHtml(a.desc)}">
-              <div class="achievement-icon">${a.unlocked ? a.icon : "🔒"}</div>
+              <div class="achievement-icon">${a.unlocked ? a.icon : "–"}</div>
               <div class="achievement-title">${escapeHtml(a.title)}</div>
             </div>
           `).join("")}
@@ -582,7 +749,7 @@ function renderSavings() {
   document.querySelectorAll("[data-goal-add]").forEach((btn) => {
     btn.addEventListener("click", () => {
       modalMode = "add";
-      activeGoalId = Number(btn.getAttribute("data-goal-add"));
+      activeGoalId = btn.getAttribute("data-goal-add");
       document.getElementById("modal-title").textContent = "Tambah Tabungan";
       document.getElementById("modal-new-goal-fields").style.display = "none";
       document.getElementById("modal-add-money-fields").style.display = "block";
@@ -592,10 +759,11 @@ function renderSavings() {
   });
 
   document.querySelectorAll("[data-goal-delete]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = Number(btn.getAttribute("data-goal-delete"));
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-goal-delete");
       if (confirm("Hapus target tabungan ini?")) {
-        db.deleteSavingsGoal(id);
+        btn.disabled = true;
+        await db.deleteSavingsGoal(id);
         renderSavings();
       }
     });
@@ -605,24 +773,34 @@ function renderSavings() {
     modal.style.display = "none";
   });
 
-  document.getElementById("modal-confirm").addEventListener("click", () => {
+  document.getElementById("modal-confirm").addEventListener("click", async (e) => {
     const errorEl = document.getElementById("modal-error");
-    if (modalMode === "new") {
-      const nama = document.getElementById("goal-nama").value.trim();
-      const target = Number(document.getElementById("goal-target").value);
-      if (!nama) { errorEl.textContent = "Nama target wajib diisi."; return; }
-      if (!target || target <= 0) { errorEl.textContent = "Target nominal harus lebih dari 0."; return; }
-      db.addSavingsGoal(nama, target);
-    } else {
-      const amount = Number(document.getElementById("goal-add-amount").value);
-      if (!amount || amount <= 0) { errorEl.textContent = "Nominal harus lebih dari 0."; return; }
-      db.addToSavingsGoal(activeGoalId, amount);
+    const btn = e.target;
+    btn.disabled = true;
+    btn.textContent = "Menyimpan...";
+    try {
+      if (modalMode === "new") {
+        const nama = document.getElementById("goal-nama").value.trim();
+        const target = Number(document.getElementById("goal-target").value);
+        if (!nama) { errorEl.textContent = "Nama target wajib diisi."; btn.disabled = false; btn.textContent = "Simpan"; return; }
+        if (!target || target <= 0) { errorEl.textContent = "Target nominal harus lebih dari 0."; btn.disabled = false; btn.textContent = "Simpan"; return; }
+        await db.addSavingsGoal(nama, target);
+      } else {
+        const amount = Number(document.getElementById("goal-add-amount").value);
+        if (!amount || amount <= 0) { errorEl.textContent = "Nominal harus lebih dari 0."; btn.disabled = false; btn.textContent = "Simpan"; return; }
+        await db.addToSavingsGoal(activeGoalId, amount);
+      }
+      modal.style.display = "none";
+      renderSavings();
+    } catch (err) {
+      errorEl.textContent = "Gagal menyimpan, cek koneksi internet kamu.";
+      btn.disabled = false;
+      btn.textContent = "Simpan";
     }
-    modal.style.display = "none";
-    renderSavings();
   });
 
   attachBottomNav();
+  attachLogout();
 }
 
 // ----------------------------- REPORT -----------------------------
@@ -702,7 +880,7 @@ function renderReport() {
 
   const clusterHtml = clusters ? `
     <div class="ai-card">
-      <div class="ai-card-title">🧩 Clustering Pola Pengeluaran (K-Means)</div>
+      <div class="ai-card-title">Clustering Pola Pengeluaran (K-Means)</div>
       <div class="cluster-profile-badge" style="background:${CLUSTER_COLORS[clusters.dominantProfile]}22; color:${CLUSTER_COLORS[clusters.dominantProfile]}">
         Profil dominan kamu: <b>${clusters.dominantProfile}</b>
       </div>
@@ -727,14 +905,14 @@ function renderReport() {
     </div>
   ` : `
     <div class="ai-card">
-      <div class="ai-card-title">🧩 Clustering Pola Pengeluaran (K-Means)</div>
+      <div class="ai-card-title">Clustering Pola Pengeluaran (K-Means)</div>
       <p class="empty-state">Minimal 3 transaksi pengeluaran dulu buat mulai clustering.</p>
     </div>
   `;
 
   const anomalyHtml = `
     <div class="ai-card">
-      <div class="ai-card-title">⚠️ Deteksi Anomali (Z-Score)</div>
+      <div class="ai-card-title">Deteksi Anomali (Z-Score)</div>
       ${anomalies.length ? `
         <p class="anomaly-intro">${anomalies.length} transaksi terdeteksi gak biasa (menyimpang jauh dari rata-rata):</p>
         <div class="anomaly-log">
@@ -754,7 +932,7 @@ function renderReport() {
 
   const healthHtml = `
     <div class="ai-card health-card">
-      <div class="ai-card-title">💯 Skor Kesehatan Keuangan</div>
+      <div class="ai-card-title">Skor Kesehatan Keuangan</div>
       <div class="health-content">
         ${renderHealthGauge(health)}
         <div class="health-info">
@@ -772,7 +950,7 @@ function renderReport() {
 
   const insightsHtml = insights ? `
     <div class="ai-card">
-      <div class="ai-card-title">🤖 AI Analisis Pengeluaran</div>
+      <div class="ai-card-title">AI Analisis Pengeluaran</div>
       <ul class="ai-insight-list">
         <li>Kategori terbesar kamu adalah <b>${escapeHtml(insights.topCategory)}</b> (${insights.topPct.toFixed(0)}% dari total pengeluaran).</li>
         <li>Kamu paling sering bertransaksi di kategori <b>${escapeHtml(insights.mostFrequentCategory)}</b> (${insights.mostFrequentCount}x).</li>
@@ -782,7 +960,7 @@ function renderReport() {
     </div>
   ` : `
     <div class="ai-card">
-      <div class="ai-card-title">🤖 AI Analisis Pengeluaran</div>
+      <div class="ai-card-title">AI Analisis Pengeluaran</div>
       <p class="empty-state">Catat beberapa transaksi dulu biar AI bisa nganalisis pola pengeluaran kamu.</p>
     </div>
   `;
@@ -792,7 +970,7 @@ function renderReport() {
     predictionHtml = `<p class="empty-state">Belum ada data pengeluaran buat diprediksi.</p>`;
   } else {
     const confLabel = { tinggi: "Keyakinan Tinggi", sedang: "Keyakinan Sedang", rendah: "Keyakinan Rendah" }[nextMonthPred.confidence] || "";
-    const trendIcon = nextMonthPred.trend === "naik" ? "📈" : nextMonthPred.trend === "turun" ? "📉" : "➡️";
+    const trendIcon = nextMonthPred.trend === "naik" ? "↑" : nextMonthPred.trend === "turun" ? "↓" : "→";
     predictionHtml = `
       <div class="prediction-value">${formatRupiah(nextMonthPred.prediction)}</div>
       <div class="prediction-meta">${trendIcon} Tren ${nextMonthPred.trend} &nbsp;•&nbsp; ${confLabel}</div>
@@ -801,7 +979,7 @@ function renderReport() {
   }
   const predictionCardHtml = `
     <div class="ai-card prediction-card">
-      <div class="ai-card-title">🔮 Prediksi Pengeluaran Bulan Depan</div>
+      <div class="ai-card-title">Prediksi Pengeluaran Bulan Depan</div>
       ${predictionHtml}
     </div>
   `;
@@ -814,7 +992,7 @@ function renderReport() {
           <div class="bar-row">
             <div class="bar-label">
               <span class="bar-swatch" style="background:${color}"></span>
-              ${CATEGORY_ICONS[label] || ""} ${escapeHtml(label)}
+              ${escapeHtml(label)}
             </div>
             <div class="bar-track">
               <div class="bar-fill" style="width:${pct}%; background:${color}"></div>
@@ -842,7 +1020,7 @@ function renderReport() {
         <div class="report-section">
           <h2>Tren Mingguan</h2>
           <div class="trend-summary ${weekComp.direction}">
-            ${weekComp.direction === "naik" ? "📈" : weekComp.direction === "turun" ? "📉" : "➡️"}
+            ${weekComp.direction === "naik" ? "↑" : weekComp.direction === "turun" ? "↓" : "→"}
             Minggu ini ${formatRupiah(weekComp.thisWeek)}
             ${weekComp.direction !== "sama" ? `(${weekComp.direction} ${weekComp.pct.toFixed(0)}%)` : "(sama)"}
           </div>
@@ -852,7 +1030,7 @@ function renderReport() {
         <div class="report-section">
           <h2>Tren Bulanan</h2>
           <div class="trend-summary ${monthComp.direction}">
-            ${monthComp.direction === "naik" ? "📈" : monthComp.direction === "turun" ? "📉" : "➡️"}
+            ${monthComp.direction === "naik" ? "↑" : monthComp.direction === "turun" ? "↓" : "→"}
             Bulan ini ${formatRupiah(monthComp.thisMonth)}
             ${monthComp.direction !== "sama" ? `(${monthComp.direction} ${monthComp.pct.toFixed(0)}% dari bulan lalu)` : "(sama dengan bulan lalu)"}
           </div>
@@ -864,7 +1042,7 @@ function renderReport() {
           <div class="bar-chart">${barsHtml}</div>
         </div>
 
-        <button id="btn-export" class="btn-export">📥 Export ke Excel</button>
+        <button id="btn-export" class="btn-export">Export ke Excel</button>
       </div>
 
       ${bottomNavHtml("report")}
@@ -873,10 +1051,30 @@ function renderReport() {
 
   document.getElementById("btn-export").addEventListener("click", exportToExcel);
   attachBottomNav();
+  attachLogout();
 }
 
 window.addEventListener("hashchange", render);
-window.addEventListener("DOMContentLoaded", render);
+
+window.addEventListener("DOMContentLoaded", () => {
+  app.innerHTML = `<div class="loading-screen"><div class="loading-logo">D</div></div>`;
+
+  authModule.init(async (user) => {
+    if (user && user.emailVerified) {
+      try {
+        await db.loadUserData(user.uid);
+      } catch (err) {
+        console.error("Gagal load data:", err);
+      }
+    }
+
+    if (!window.location.hash) {
+      routeAuto();
+    } else {
+      render();
+    }
+  });
+});
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

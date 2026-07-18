@@ -1,8 +1,10 @@
-const CACHE_NAME = "keuangan-app-v5";
+const CACHE_NAME = "keuangan-app-v7";
 const ASSETS = [
   "./",
   "./index.html",
   "./app.js",
+  "./auth.js",
+  "./firebase-config.js",
   "./classifier.js",
   "./storage.js",
   "./training-data.js",
